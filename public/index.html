@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parfumerie — Encyclopédie personnelle</title>
+
+  <!-- Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=Jost:wght@200;300;400;500&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Configuration Tailwind -->
+  <script src="javascript/tailwind.config.js"></script>
+
+  <!-- Styles globaux -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- Point de montage -->
+  <div id="app"></div>
+
+  <!-- ① Données & état -->
+  <script src="javascript/state.js"></script>
+  <script src="javascript/db.js"></script>
+
+  <!-- ② Utilitaires -->
+  <script src="javascript/helpers.js"></script>
+
+  <!-- ③ Vues -->
+  <script src="javascript/header.js"></script>
+  <script src="javascript/home.js"></script>
+  <script src="javascript/maison.js"></script>
+  <script src="javascript/parfum.js"></script>
+  <script src="javascript/admin.js"></script>
+  <script src="javascript/modals.js"></script>
+
+  <!-- ④ Actions (dépend des vues) -->
+  <script src="javascript/actions.js"></script>
+
+  <!-- ⑤ Démarrage (toujours en dernier) -->
+  <script src="javascript/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Dépendances — Railway fait npm install lui-même
+node_modules/
+.claude
+
+# Variables d'environnement — ne jamais commit
+.env
+.env.local
+.env.*.local
+
+# Base de données de dev si tu veux repartir de zéro en prod
+# (retire cette ligne si tu veux push ta base locale)
+# parfumerie.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+*.suo
+*.user
+
+# Build / cache
+.cache/
+dist/
