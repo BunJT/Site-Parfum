@@ -39,6 +39,7 @@ function renderParfumDetail() {
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;">
           ${familles.map(f => `<span class="badge badge-gold"><span class="famille-dot" style="background:${f.couleur || '#9A8A78'};"></span>${f.nom}</span>`).join('')}
           ${p.concentration ? `<span class="badge badge-outline">${p.concentration}</span>` : ''}
+          ${p.coup_qp ? `<span style="font-size:0.7rem;padding:0.2rem 0.75rem;border-radius:100px;background:var(--gold);color:#0d0b09;font-weight:500;letter-spacing:0.03em;">★ Rapport Q/P</span>` : ''}
           ${p.statut === 'non_teste' ? `<span style="font-size:0.68rem;padding:0.2rem 0.7rem;border-radius:100px;border:1px solid var(--border-light);color:var(--text-3);font-style:italic;">Non testé personnellement</span>` : ''}
           ${p.gamme_prix ? `<span style="font-size:0.75rem;padding:0.2rem 0.7rem;border-radius:100px;border:1px solid var(--border-light);color:var(--text-2);">${p.gamme_prix} €</span>` : ''}
         </div>
@@ -53,6 +54,12 @@ function renderParfumDetail() {
         ${p.description
           ? `<p style="color:var(--text-2);line-height:1.95;font-size:1rem;">${p.description}</p>`
           : ''}
+
+        ${p.avis_perso ? `
+        <div style="margin-top:2rem;padding:1.5rem;background:var(--bg-card);border-left:2px solid var(--gold);border-radius:0 8px 8px 0;">
+          <p style="font-size:0.62rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold);margin-bottom:0.75rem;">Mon avis</p>
+          <p style="color:var(--text);line-height:1.9;font-size:0.95rem;font-style:italic;">${p.avis_perso}</p>
+        </div>` : ''}
       </div>
 
     </div>

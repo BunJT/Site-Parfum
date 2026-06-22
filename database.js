@@ -67,7 +67,10 @@ async function init() {
       note_coeur    TEXT,
       note_fond     TEXT,
       image_base64  TEXT,
-      statut        TEXT DEFAULT 'teste'
+      statut        TEXT DEFAULT 'teste',
+      gamme_prix    TEXT DEFAULT NULL,
+      coup_qp       INTEGER DEFAULT 0,
+      avis_perso    TEXT DEFAULT NULL
     )
   `)
 
@@ -76,6 +79,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS parfum_familles (
       parfum_id  INTEGER NOT NULL REFERENCES parfums(id) ON DELETE CASCADE,
       famille_id INTEGER NOT NULL REFERENCES familles(id) ON DELETE CASCADE,
+      ordre      INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (parfum_id, famille_id)
     )
   `)
@@ -117,6 +121,23 @@ async function init() {
   if (!nomsParfums3.includes('gamme_prix')) {
     await run(`ALTER TABLE parfums ADD COLUMN gamme_prix TEXT DEFAULT NULL`)
     console.log('✓ Migration : colonne gamme_prix ajoutée')
+  }
+
+  const colonnesPF = await all(`PRAGMA table_info(parfum_familles)`)
+  if (!colonnesPF.map(c => c.name).includes('ordre')) {
+    await run(`ALTER TABLE parfum_familles ADD COLUMN ordre INTEGER NOT NULL DEFAULT 0`)
+    console.log('✓ Migration : colonne ordre ajoutée à parfum_familles')
+  }
+
+  const colP = await all(`PRAGMA table_info(parfums)`)
+  const nomsP = colP.map(c => c.name)
+  if (!nomsP.includes('coup_qp')) {
+    await run(`ALTER TABLE parfums ADD COLUMN coup_qp INTEGER DEFAULT 0`)
+    console.log('✓ Migration : colonne coup_qp ajoutée')
+  }
+  if (!nomsP.includes('avis_perso')) {
+    await run(`ALTER TABLE parfums ADD COLUMN avis_perso TEXT DEFAULT NULL`)
+    console.log('✓ Migration : colonne avis_perso ajoutée')
   }
 
   console.log('✓ Base de données prête')

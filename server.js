@@ -4,22 +4,79 @@
 require('dotenv').config()
 
 const express            = require('express')
+const session            = require('express-session')
+const rateLimit          = require('express-rate-limit')
 const path               = require('path')
 const { run, get, all, init } = require('./database')
 
 const app  = express()
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
 
+// Vérification des variables d'environnement critiques au démarrage
+if (!ADMIN_PASSWORD) {
+  console.error('❌ ADMIN_PASSWORD manquant. Définis-le dans .env (local) ou les variables Railway (prod).')
+  process.exit(1)
+}
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 16) {
+  console.error('❌ SESSION_SECRET manquant ou trop court (16 caractères minimum).')
+  process.exit(1)
+}
+
+// Limite de taille pour une image base64 (≈ 2.7 Mo une fois encodée pour 2 Mo de fichier)
+const MAX_IMAGE_LENGTH = 3_000_000
+
+app.set('trust proxy', 1)
 app.use(express.json({ limit: '10mb' }))
 app.use(express.static(path.join(__dirname, 'public')))
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,       // inaccessible depuis JS
+    secure: process.env.NODE_ENV === 'production', // HTTPS en prod
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 jours
+  }
+}))
 
 function requireAdmin(req, res, next) {
-  if (req.headers['x-admin-password'] !== ADMIN_PASSWORD) {
+  if (!req.session?.adminLogged) {
     return res.status(401).json({ error: 'Non autorisé' })
   }
   next()
 }
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                  // 10 tentatives max par IP
+  message: { error: 'Trop de tentatives. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+app.post('/api/login', loginLimiter, (req, res) => {
+  const { password } = req.body
+  if (password === ADMIN_PASSWORD) {
+    req.session.adminLogged = true
+    res.json({ success: true })
+  } else {
+    res.status(401).json({ error: 'Mot de passe incorrect' })
+  }
+})
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy()
+  res.json({ success: true })
+})
+
+app.get('/api/session', (req, res) => {
+  res.json({ adminLogged: !!req.session?.adminLogged })
+})
 
 // ══════════════════════════════════════════════════════════
 // FAMILLES
@@ -64,7 +121,7 @@ app.get('/api/maisons', async (req, res) => {
   try {
     const maisons = await all(`SELECT * FROM maisons ORDER BY nom`)
     const parfums = await all(`
-      SELECT p.id, p.nom, p.maison_id, p.concentration, p.statut, p.gamme_prix,
+      SELECT p.id, p.nom, p.maison_id, p.concentration, p.statut, p.gamme_prix, p.coup_qp, p.avis_perso,
              p.description, p.note_tete, p.note_coeur, p.note_fond, p.image_base64,
              m.nom AS maison_nom
       FROM parfums p
@@ -75,9 +132,10 @@ app.get('/api/maisons', async (req, res) => {
     // Attache les familles à chaque parfum
     for (const p of parfums) {
       const familles = await all(`
-        SELECT f.id, f.nom, f.couleur FROM familles f
+        SELECT f.id, f.nom, f.couleur, pf.ordre FROM familles f
         INNER JOIN parfum_familles pf ON pf.famille_id = f.id
         WHERE pf.parfum_id = ?
+        ORDER BY pf.ordre ASC
       `, [p.id])
       p.familles = familles
     }
@@ -125,7 +183,7 @@ app.get('/api/parfums', async (req, res) => {
   try {
     const { search, maison } = req.query
     let q = `
-      SELECT p.id, p.nom, p.maison_id, p.concentration, p.statut, p.gamme_prix,
+      SELECT p.id, p.nom, p.maison_id, p.concentration, p.statut, p.gamme_prix, p.coup_qp, p.avis_perso,
              p.description, p.note_tete, p.note_coeur, p.note_fond, p.image_base64,
              m.nom AS maison_nom
       FROM parfums p
@@ -139,9 +197,10 @@ app.get('/api/parfums', async (req, res) => {
     const parfums = await all(q, params)
     for (const p of parfums) {
       p.familles = await all(`
-        SELECT f.id, f.nom, f.couleur FROM familles f
+        SELECT f.id, f.nom, f.couleur, pf.ordre FROM familles f
         INNER JOIN parfum_familles pf ON pf.famille_id = f.id
         WHERE pf.parfum_id = ?
+        ORDER BY pf.ordre ASC
       `, [p.id])
     }
     res.json(parfums)
@@ -167,19 +226,24 @@ app.get('/api/parfums/:id', async (req, res) => {
 
 app.post('/api/parfums', requireAdmin, async (req, res) => {
   const { nom, maison_id, famille_ids, concentration, description,
-          note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix } = req.body
+          note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix,
+          coup_qp, avis_perso } = req.body
   if (!nom || !maison_id) return res.status(400).json({ error: 'Nom et maison requis' })
+  if (image_base64 && image_base64.length > MAX_IMAGE_LENGTH) {
+    return res.status(413).json({ error: 'Image trop lourde (max 2 Mo).' })
+  }
   try {
     const r = await run(`
-      INSERT INTO parfums (nom, maison_id, concentration, description, note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO parfums (nom, maison_id, concentration, description, note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix, coup_qp, avis_perso)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [nom, maison_id, concentration||null, description||null,
-        note_tete||null, note_coeur||null, note_fond||null, image_base64||null, statut||'teste', gamme_prix||null])
+        note_tete||null, note_coeur||null, note_fond||null, image_base64||null, statut||'teste', gamme_prix||null,
+        coup_qp ? 1 : 0, avis_perso||null])
 
     // Liaison familles
     if (famille_ids?.length) {
-      for (const fid of famille_ids) {
-        await run(`INSERT OR IGNORE INTO parfum_familles (parfum_id, famille_id) VALUES (?, ?)`, [r.lastID, fid])
+      for (let i = 0; i < famille_ids.length; i++) {
+        await run(`INSERT OR IGNORE INTO parfum_familles (parfum_id, famille_id, ordre) VALUES (?, ?, ?)`, [r.lastID, famille_ids[i], i])
       }
     }
     res.status(201).json({ id: r.lastID })
@@ -188,23 +252,28 @@ app.post('/api/parfums', requireAdmin, async (req, res) => {
 
 app.put('/api/parfums/:id', requireAdmin, async (req, res) => {
   const { nom, maison_id, famille_ids, concentration, description,
-          note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix } = req.body
+          note_tete, note_coeur, note_fond, image_base64, statut, gamme_prix,
+          coup_qp, avis_perso } = req.body
   if (!nom || !maison_id) return res.status(400).json({ error: 'Nom et maison requis' })
+  if (image_base64 && image_base64.length > MAX_IMAGE_LENGTH) {
+    return res.status(413).json({ error: 'Image trop lourde (max 2 Mo).' })
+  }
   try {
     await run(`
       UPDATE parfums SET nom=?, maison_id=?, concentration=?, description=?,
-        note_tete=?, note_coeur=?, note_fond=?, image_base64=?, statut=?, gamme_prix=?
+        note_tete=?, note_coeur=?, note_fond=?, image_base64=?, statut=?, gamme_prix=?,
+        coup_qp=?, avis_perso=?
       WHERE id=?
     `, [nom, maison_id, concentration||null, description||null,
         note_tete||null, note_coeur||null, note_fond||null,
         image_base64 !== undefined ? image_base64 : null,
-        statut||'teste', gamme_prix||null, req.params.id])
+        statut||'teste', gamme_prix||null, coup_qp ? 1 : 0, avis_perso||null, req.params.id])
 
     // Remplace toutes les liaisons familles
     await run(`DELETE FROM parfum_familles WHERE parfum_id = ?`, [req.params.id])
     if (famille_ids?.length) {
-      for (const fid of famille_ids) {
-        await run(`INSERT OR IGNORE INTO parfum_familles (parfum_id, famille_id) VALUES (?, ?)`, [req.params.id, fid])
+      for (let i = 0; i < famille_ids.length; i++) {
+        await run(`INSERT OR IGNORE INTO parfum_familles (parfum_id, famille_id, ordre) VALUES (?, ?, ?)`, [req.params.id, famille_ids[i], i])
       }
     }
     res.json({ success: true })

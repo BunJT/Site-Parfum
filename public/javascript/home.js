@@ -42,6 +42,17 @@ function renderHome() {
       if (!search && familleIds.length === 0) return true
       return (search && m.nom.toLowerCase().includes(search)) || m.parfums.length > 0
     })
+    .map(m => ({
+      ...m,
+      // Trie les parfums : ceux avec la famille filtrée en position dominante (0) d'abord
+      parfums: familleIds.length > 0
+        ? [...m.parfums].sort((a, b) => {
+            const aIdx = (a.familles || []).findIndex(f => familleIds.includes(f.id))
+            const bIdx = (b.familles || []).findIndex(f => familleIds.includes(f.id))
+            return aIdx - bIdx
+          })
+        : m.parfums
+    }))
 
   return `
   <div style="max-width:1200px;margin:0 auto;padding:3rem 2rem;">
@@ -167,6 +178,7 @@ function renderMaisonList(m) {
             >
               <div style="flex:1;display:flex;align-items:center;gap:0.6rem;">
                 <span style="font-size:0.95rem;">${p.nom}</span>
+                ${p.coup_qp ? `<span style="font-size:0.6rem;padding:0.15rem 0.5rem;border-radius:100px;background:var(--gold);color:#0d0b09;font-weight:500;">Rapport Q/P</span>` : ''}
                 ${p.statut === 'non_teste' ? `<span style="font-size:0.6rem;padding:0.15rem 0.5rem;border-radius:100px;background:rgba(201,169,110,0.1);color:var(--gold);border:1px solid rgba(201,169,110,0.25);">Non testé</span>` : ''}
               </div>
               <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
@@ -252,6 +264,7 @@ function renderParfumCard(p) {
     <!-- Infos -->
     <div style="padding:0.7rem;flex:1;display:flex;flex-direction:column;gap:0.4rem;">
       <h3 style="font-family:'Cormorant Garamond',serif;font-size:0.95rem;line-height:1.2;">${p.nom}</h3>
+      ${p.coup_qp ? `<span style="font-size:0.6rem;padding:0.2rem 0.55rem;border-radius:100px;background:var(--gold);color:#0d0b09;font-weight:500;letter-spacing:0.05em;align-self:flex-start;">Rapport Q/P</span>` : ''}
       ${p.statut === 'non_teste' ? `<span style="font-size:0.6rem;padding:0.2rem 0.55rem;border-radius:100px;background:rgba(201,169,110,0.1);color:var(--gold);border:1px solid rgba(201,169,110,0.25);letter-spacing:0.05em;align-self:flex-start;">Non testé</span>` : ''}
       <div style="display:flex;gap:0.3rem;flex-wrap:wrap;align-items:center;margin-top:auto;">
         ${familles.slice(0,2).map(f => `

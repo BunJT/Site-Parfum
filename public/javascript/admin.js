@@ -166,6 +166,7 @@ function renderAdminParfums() {
         ${f ? `<span class="badge badge-gold">${familleDot(f.nom)} ${f.nom}</span>` : ''}
         ${p.concentration ? `<span class="badge badge-outline">${p.concentration}</span>` : ''}
         ${p.gamme_prix ? `<span class="badge badge-outline">${p.gamme_prix} €</span>` : ''}
+        ${p.coup_qp ? `<span style="font-size:0.65rem;padding:0.2rem 0.6rem;border-radius:100px;background:var(--gold);color:#0d0b09;font-weight:500;">Q/P</span>` : ''}
         ${p.statut === 'non_teste' ? `<span style="font-size:0.65rem;padding:0.2rem 0.6rem;border-radius:100px;border:1px solid rgba(201,169,110,0.3);color:var(--gold);background:rgba(201,169,110,0.08);">Non testé</span>` : ''}
         <button class="btn btn-outline btn-sm" onclick="openModal('editParfum', ${p.id})">Modifier</button>
         <button class="btn btn-danger  btn-sm" onclick="confirmDelete('parfum', ${p.id})">Supprimer</button>

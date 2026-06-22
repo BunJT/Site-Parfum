@@ -11,31 +11,19 @@ const DB = {
 
 // Mot de passe admin envoyé dans les headers des requêtes protégées
 // (en prod, utiliser une vraie session/token)
-let _adminPassword = null
-
-function setAdminPassword(pw) {
-  _adminPassword = pw
-  if (pw) {
-    localStorage.setItem('admin_pw', pw)
-  } else {
-    localStorage.removeItem('admin_pw')
-  }
-}
-
-function restoreAdminSession() {
-  const saved = localStorage.getItem('admin_pw')
-  if (saved) {
-    _adminPassword = saved
-    return true  // session restaurée
-  }
-  return false
-}
-
 function adminHeaders() {
+  // Plus besoin d'envoyer le mot de passe — le cookie de session
+  // est joint automatiquement par le navigateur à chaque requête
   return {
     'Content-Type': 'application/json',
-    'x-admin-password': _adminPassword || '',
   }
+}
+
+async function restoreAdminSession() {
+  // Vérifie auprès du serveur si la session est toujours active
+  const res = await fetch('/api/session')
+  const data = await res.json()
+  return data.adminLogged
 }
 
 // ── Chargement initial ────────────────────────────────────

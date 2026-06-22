@@ -15,7 +15,6 @@ function render() {
   `
 }
 
-// Affiche un écran de chargement pendant que l'API répond
 function renderLoading() {
   document.getElementById('app').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:1rem;">
@@ -25,28 +24,16 @@ function renderLoading() {
   `
 }
 
-// Lance l'app une fois le DOM prêt
 document.addEventListener('DOMContentLoaded', async () => {
   renderLoading()
 
-  // Restaure la session admin si elle existait avant le refresh
-  if (restoreAdminSession()) {
-    // Vérifie que le mot de passe est toujours valide côté serveur
-    const check = await fetch('/api/maisons', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-password': localStorage.getItem('admin_pw') },
-      body: JSON.stringify({ __check: true })
-    })
-    if (check.status !== 401) {
-      State.adminLogged = true
-    } else {
-      // Mot de passe invalide, on nettoie
-      setAdminPassword(null)
-    }
+  // Vérifie si la session est toujours active côté serveur (via cookie)
+  const sessionActive = await restoreAdminSession()
+  if (sessionActive) {
+    State.adminLogged = true
   }
 
   // Réinitialise proprement les filtres à chaque chargement
-  // pour éviter tout état résiduel après refresh
   State.familleFilter = []
   State.prixFilter    = null
   State.search        = ''

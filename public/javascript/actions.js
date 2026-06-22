@@ -88,7 +88,10 @@ function setAdminView(view) {
 
 function onSearch(val) {
   State.search = val
-  render()
+  // Re-rend uniquement le contenu, pas le header — sinon l'input
+  // de recherche perd le focus et le dropdown de suggestions disparaît
+  const main = document.getElementById('main-content')
+  if (main) main.innerHTML = renderHome()
 }
 
 function setFamilleFilter(id) {
@@ -149,16 +152,14 @@ function closeModalOnOverlay(event) {
 async function doLogin() {
   const pw = document.getElementById('f-pw')?.value
 
-  // Vérifie le mot de passe en tentant une requête protégée
-  const res = await fetch('/api/maisons', {
+  const res = await fetch('/api/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
-    body: JSON.stringify({ __check: true }) // corps invalide → 400 mais pas 401
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+    credentials: 'same-origin' // inclut le cookie de session
   })
 
-  if (res.status !== 401) {
-    // Mot de passe accepté
-    setAdminPassword(pw)
+  if (res.ok) {
     State.adminLogged = true
     State.modal       = null
     State.view        = 'admin'
@@ -169,9 +170,12 @@ async function doLogin() {
   }
 }
 
-function logout() {
+async function logout() {
+  await fetch('/api/logout', {
+    method: 'POST',
+    credentials: 'same-origin'
+  })
   State.adminLogged = false
-  setAdminPassword(null)
   nav('home')
 }
 
@@ -275,18 +279,106 @@ function updateToggleStyle(checkbox) {
   }
 }
 
-// Toggle visuel d'une famille dans le formulaire parfum
-function toggleFamilleCheckbox(label, familleId) {
-  const checkbox = document.getElementById(`f-famille-${familleId}`)
-  if (!checkbox) return
-  checkbox.checked = !checkbox.checked
+// Anime le toggle rapport qualité-prix
+function updateQpToggleStyle(checkbox) {
+  const track = document.getElementById('qp-track')
+  const thumb = document.getElementById('qp-thumb')
+  if (!track || !thumb) return
   if (checkbox.checked) {
-    label.style.borderColor = 'var(--gold)'
-    label.style.background  = 'var(--gold-dim)'
+    track.style.background = 'var(--gold)'
+    thumb.style.left = '21px'
   } else {
-    label.style.borderColor = 'var(--border-light)'
-    label.style.background  = 'transparent'
+    track.style.background = 'var(--border-light)'
+    thumb.style.left = '3px'
   }
+}
+
+// ── Gestion des familles ordonnées ───────────────────────
+
+// Retourne les ids des familles dans l'ordre actuel du DOM
+function getFamillesOrdre() {
+  const list = document.getElementById('familles-ordre-list')
+  if (!list) return []
+  return [...list.querySelectorAll('[id^="famille-ordre-"]')]
+    .map(el => parseInt(el.id.replace('famille-ordre-', '')))
+}
+
+// Ajoute une famille à la fin de la liste
+function addFamilleOrdre(familleId) {
+  const f = DB.familles.find(x => x.id === familleId)
+  if (!f) return
+  const list = document.getElementById('familles-ordre-list')
+  if (!list) return
+
+  // Vérifier qu'elle n'est pas déjà dans la liste
+  if (document.getElementById(`famille-ordre-${familleId}`)) return
+
+  const idx = list.children.length
+  const div = document.createElement('div')
+  div.id = `famille-ordre-${familleId}`
+  div.style.cssText = 'display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:var(--gold-dim);border:1px solid rgba(201,169,110,0.3);border-radius:6px;'
+  div.innerHTML = `
+    <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
+    <span style="flex:1;font-size:0.78rem;color:var(--gold);">${f.nom}</span>
+    <span class="ordre-label" style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <button type="button" onclick="moveFamilleOrdre(${familleId}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;">▲</button>
+      <button type="button" onclick="moveFamilleOrdre(${familleId}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;">▼</button>
+    </div>
+    <button type="button" onclick="removeFamilleOrdre(${familleId})" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.9rem;line-height:1;padding:0 2px;">×</button>
+    <input type="hidden" id="f-famille-${familleId}" value="${familleId}"/>
+  `
+  list.appendChild(div)
+  updateFamilleLabels()
+
+  // Retire le bouton d'ajout correspondant
+  const btn = document.querySelector(`button[onclick="addFamilleOrdre(${familleId})"]`)
+  if (btn) btn.remove()
+}
+
+// Déplace une famille vers le haut (-1) ou le bas (1)
+function moveFamilleOrdre(familleId, direction) {
+  const list = document.getElementById('familles-ordre-list')
+  const el   = document.getElementById(`famille-ordre-${familleId}`)
+  if (!list || !el) return
+
+  if (direction === -1 && el.previousElementSibling) {
+    list.insertBefore(el, el.previousElementSibling)
+  } else if (direction === 1 && el.nextElementSibling) {
+    list.insertBefore(el.nextElementSibling, el)
+  }
+  updateFamilleLabels()
+}
+
+// Supprime une famille de la liste et la remet dans les disponibles
+function removeFamilleOrdre(familleId) {
+  const el = document.getElementById(`famille-ordre-${familleId}`)
+  if (el) el.remove()
+  updateFamilleLabels()
+
+  // Remet le bouton dans les disponibles
+  const f = DB.familles.find(x => x.id === familleId)
+  if (!f) return
+  const container = document.getElementById('familles-ordre-list')?.previousElementSibling
+  if (!container) return
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.onclick = () => addFamilleOrdre(familleId)
+  btn.style.cssText = "display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.7rem;border:1px solid var(--border-light);border-radius:100px;background:transparent;color:var(--text-2);cursor:pointer;font-size:0.7rem;font-family:'Jost',sans-serif;transition:all 0.15s;"
+  btn.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;"></span> + ${f.nom}`
+  btn.onmouseover = () => { btn.style.borderColor = 'var(--gold)'; btn.style.color = 'var(--gold)' }
+  btn.onmouseout  = () => { btn.style.borderColor = 'var(--border-light)'; btn.style.color = 'var(--text-2)' }
+  container.appendChild(btn)
+}
+
+// Met à jour les labels Dominante/Secondaire
+function updateFamilleLabels() {
+  const list = document.getElementById('familles-ordre-list')
+  if (!list) return
+  const labels = list.querySelectorAll('.ordre-label')
+  labels.forEach((lbl, i) => {
+    lbl.textContent = i === 0 ? 'Dominante' : i === 1 ? 'Secondaire' : ''
+  })
 }
 
 async function saveParfum(id) {
@@ -294,10 +386,8 @@ async function saveParfum(id) {
   const maisonId = parseInt(fieldValue('f-maison'))
   if (!nom || !maisonId) return alert('Le nom et la maison sont requis.')
 
-  // Récupère toutes les familles cochées
-  const famille_ids = DB.familles
-    .filter(f => document.getElementById(`f-famille-${f.id}`)?.checked)
-    .map(f => f.id)
+  // Récupère les familles dans leur ordre défini
+  const famille_ids = getFamillesOrdre()
 
   // Résolution de l'image
   let image_base64
@@ -311,6 +401,8 @@ async function saveParfum(id) {
   }
 
   const statut     = document.getElementById('f-statut')?.checked ? 'non_teste' : 'teste'
+  const coup_qp    = document.getElementById('f-coupqp')?.checked ? 1 : 0
+  const avis_perso = fieldValue('f-avis') || null
   const gamme_prix = document.getElementById('f-prix')?.value || null
 
   const body = {
@@ -325,6 +417,8 @@ async function saveParfum(id) {
     image_base64,
     statut,
     gamme_prix: gamme_prix || null,
+    coup_qp,
+    avis_perso,
   }
 
   const url    = id ? `/api/parfums/${id}` : '/api/parfums'

@@ -38,6 +38,9 @@ function renderLoginModal() {
         <button class="btn btn-gold" onclick="doLogin()" style="flex:1;">Connexion</button>
         <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
       </div>
+      <p style="color:var(--text-3);font-size:0.68rem;text-align:center;">
+        Mot de passe par défaut : <code style="color:var(--gold);">admin</code>
+      </p>
     </div>
   </div>`
 }
@@ -117,18 +120,41 @@ function renderParfumModal() {
         </select>
       </div>
 
-      <!-- Familles olfactives (multi-sélection via cases à cocher) -->
+      <!-- Familles olfactives ordonnées -->
       <div>
-        <label class="field-label">Familles olfactives</label>
-        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.25rem;">
-          ${DB.familles.map(f => `
-            <label style="display:flex;align-items:center;gap:0.4rem;padding:0.35rem 0.75rem;border:1px solid ${famillesActives.includes(f.id) ? 'var(--gold)' : 'var(--border-light)'};border-radius:100px;cursor:pointer;transition:all 0.15s;background:${famillesActives.includes(f.id) ? 'var(--gold-dim)' : 'transparent'};"
-              onclick="toggleFamilleCheckbox(this, ${f.id})">
-              <input type="checkbox" id="f-famille-${f.id}" value="${f.id}" ${famillesActives.includes(f.id) ? 'checked' : ''} style="display:none;"/>
-              <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
-              <span style="font-size:0.72rem;letter-spacing:0.05em;">${f.nom}</span>
-            </label>
+        <label class="field-label">Familles olfactives <span style="color:var(--text-3);font-size:0.65rem;letter-spacing:0.05em;text-transform:none;font-weight:300;">— la première est la dominante</span></label>
+
+        <!-- Familles non sélectionnées (à ajouter) -->
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;">
+          ${DB.familles.filter(f => !famillesActives.includes(f.id)).map(f => `
+            <button type="button" onclick="addFamilleOrdre(${f.id})"
+              style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.7rem;border:1px solid var(--border-light);border-radius:100px;background:transparent;color:var(--text-2);cursor:pointer;font-size:0.7rem;font-family:'Jost',sans-serif;transition:all 0.15s;"
+              onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+              onmouseout="this.style.borderColor='var(--border-light)';this.style.color='var(--text-2)'">
+              <span style="width:7px;height:7px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;"></span>
+              + ${f.nom}
+            </button>
           `).join('')}
+        </div>
+
+        <!-- Familles sélectionnées ordonnées -->
+        <div id="familles-ordre-list" style="display:flex;flex-direction:column;gap:0.4rem;">
+          ${famillesActives.map((fid, idx) => {
+            const f = DB.familles.find(x => x.id === fid)
+            if (!f) return ''
+            return `
+            <div id="famille-ordre-${fid}" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:var(--gold-dim);border:1px solid rgba(201,169,110,0.3);border-radius:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
+              <span style="flex:1;font-size:0.78rem;color:var(--gold);">${f.nom}</span>
+              <span style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
+              <div style="display:flex;flex-direction:column;gap:2px;">
+                <button type="button" onclick="moveFamilleOrdre(${fid}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>▲</button>
+                <button type="button" onclick="moveFamilleOrdre(${fid}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;" ${idx === famillesActives.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>▼</button>
+              </div>
+              <button type="button" onclick="removeFamilleOrdre(${fid})" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.9rem;line-height:1;padding:0 2px;">×</button>
+              <input type="hidden" id="f-famille-${fid}" value="${fid}" data-ordre="${idx}"/>
+            </div>`
+          }).join('')}
         </div>
       </div>
 
@@ -181,6 +207,12 @@ function renderParfumModal() {
         </div>
       </div>
 
+      <!-- Avis personnel -->
+      <div style="border-top:1px solid var(--border);padding-top:1rem;">
+        <label class="field-label">Mon avis personnel <span style="color:var(--text-3);font-size:0.65rem;letter-spacing:0.05em;text-transform:none;font-weight:300;">— optionnel, visible par les visiteurs</span></label>
+        <textarea class="field" id="f-avis" rows="3" placeholder="Ce que tu penses de ce parfum, à qui tu le conseillerais…">${p.avis_perso || ''}</textarea>
+      </div>
+
       <!-- Gamme de prix -->
       <div>
         <label class="field-label">Gamme de prix</label>
@@ -201,7 +233,7 @@ function renderParfumModal() {
         <input type="hidden" id="f-prix" value="${p.gamme_prix || ''}" />
       </div>
 
-      <!-- Statut -->
+      <!-- Statut non testé -->
       <div style="padding:1rem;background:var(--bg-card-hover);border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
         <div>
           <p style="font-size:0.8rem;color:var(--text);">Parfum non testé personnellement</p>
@@ -217,6 +249,26 @@ function renderParfumModal() {
           />
           <span id="toggle-track" style="position:absolute;inset:0;border-radius:100px;background:${p.statut === 'non_teste' ? 'var(--gold)' : 'var(--border-light)'};transition:background 0.2s;">
             <span style="position:absolute;top:3px;left:${p.statut === 'non_teste' ? '21px' : '3px'};width:16px;height:16px;border-radius:50%;background:white;transition:left 0.2s;" id="toggle-thumb"></span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Pastille coup qualité-prix -->
+      <div style="padding:1rem;background:var(--bg-card-hover);border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <p style="font-size:0.8rem;color:var(--text);">Meilleur rapport qualité-prix</p>
+          <p style="font-size:0.7rem;color:var(--text-3);margin-top:0.2rem;">Affiche un badge doré "Rapport Q/P" sur le parfum</p>
+        </div>
+        <label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer;">
+          <input
+            type="checkbox"
+            id="f-coupqp"
+            ${p.coup_qp ? 'checked' : ''}
+            style="opacity:0;width:0;height:0;"
+            onchange="updateQpToggleStyle(this)"
+          />
+          <span id="qp-track" style="position:absolute;inset:0;border-radius:100px;background:${p.coup_qp ? 'var(--gold)' : 'var(--border-light)'};transition:background 0.2s;">
+            <span style="position:absolute;top:3px;left:${p.coup_qp ? '21px' : '3px'};width:16px;height:16px;border-radius:50%;background:white;transition:left 0.2s;" id="qp-thumb"></span>
           </span>
         </label>
       </div>
