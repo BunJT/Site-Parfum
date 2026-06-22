@@ -297,7 +297,7 @@ app.delete('/api/parfums/:id', requireAdmin, async (req, res) => {
 // ── Démarrage ─────────────────────────────────────────────
 
 init().then(() => {
-  app.listen(PORT, () => console.log(`✓ Parfumerie démarrée sur http://localhost:${PORT}`))
+  app.listen(PORT, "0.0.0.0", () => console.log(`✓ Parfumerie démarrée sur le port ${PORT}`))
 }).catch(err => {
   console.error('Erreur BDD :', err)
   process.exit(1)
