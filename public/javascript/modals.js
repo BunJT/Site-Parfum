@@ -144,15 +144,16 @@ function renderParfumModal() {
             if (!f) return ''
             return `
             <div id="famille-ordre-${fid}" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:var(--gold-dim);border:1px solid rgba(201,169,110,0.3);border-radius:6px;">
+              <span class="drag-handle" style="cursor:grab;color:var(--text-3);font-size:0.85rem;line-height:1;user-select:none;flex-shrink:0;" title="Glisser pour réordonner">⠿</span>
               <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
               <span style="flex:1;font-size:0.78rem;color:var(--gold);">${f.nom}</span>
-              <span style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
+              <span class="ordre-label" style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
               <div style="display:flex;flex-direction:column;gap:2px;">
-                <button type="button" onclick="moveFamilleOrdre(${fid}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>▲</button>
-                <button type="button" onclick="moveFamilleOrdre(${fid}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;" ${idx === famillesActives.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>▼</button>
+                <button type="button" onclick="moveFamilleOrdre(${fid}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.65rem;line-height:1;padding:1px 4px;opacity:0.6;">▲</button>
+                <button type="button" onclick="moveFamilleOrdre(${fid}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.65rem;line-height:1;padding:1px 4px;opacity:0.6;">▼</button>
               </div>
               <button type="button" onclick="removeFamilleOrdre(${fid})" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.9rem;line-height:1;padding:0 2px;">×</button>
-              <input type="hidden" id="f-famille-${fid}" value="${fid}" data-ordre="${idx}"/>
+              <input type="hidden" id="f-famille-${fid}" value="${fid}"/>
             </div>`
           }).join('')}
         </div>

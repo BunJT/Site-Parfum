@@ -10,6 +10,7 @@ function render() {
       ${State.view === 'maison' ? renderMaisonDetail() : ''}
       ${State.view === 'parfum' ? renderParfumDetail() : ''}
       ${State.view === 'admin'  ? renderAdmin()        : ''}
+      ${State.view === 'quiz'   ? renderQuiz()         : ''}
     </div>
     ${renderModal()}
   `

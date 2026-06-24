@@ -47,6 +47,12 @@ function renderHeader() {
 
       <!-- Zone droite -->
       <div style="margin-left:${isHome ? '0' : 'auto'};display:flex;align-items:center;gap:0.75rem;">
+        ${!isAdmin ? `
+        <button
+          class="btn btn-gold"
+          onclick="openQuiz()"
+          style="white-space:nowrap;"
+        >Trouve ton parfum</button>` : ''}
         ${State.adminLogged ? `<span class="admin-pill">Admin</span>` : ''}
         <button
           class="btn btn-ghost"

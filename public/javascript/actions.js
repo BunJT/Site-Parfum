@@ -131,6 +131,12 @@ function openModal(type, id = null) {
   render()
   setTimeout(() => {
     document.querySelector('.modal-box input, .modal-box select, .modal-box textarea')?.focus()
+    // Active le drag & drop sur les familles déjà présentes (mode édition)
+    const list = document.getElementById('familles-ordre-list')
+    if (list) {
+      initFamilleDragContainer(list)
+      list.querySelectorAll('[id^="famille-ordre-"]').forEach(makeFamilleDraggable)
+    }
   }, 50)
 }
 
@@ -304,34 +310,87 @@ function getFamillesOrdre() {
 }
 
 // Ajoute une famille à la fin de la liste
+function buildFamilleOrdreHTML(f, idx) {
+  return `
+    <span class="drag-handle" style="cursor:grab;color:var(--text-3);font-size:0.85rem;line-height:1;user-select:none;flex-shrink:0;" title="Glisser pour réordonner">⠿</span>
+    <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
+    <span style="flex:1;font-size:0.78rem;color:var(--gold);">${f.nom}</span>
+    <span class="ordre-label" style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <button type="button" onclick="moveFamilleOrdre(${f.id}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.65rem;line-height:1;padding:1px 4px;opacity:0.6;">▲</button>
+      <button type="button" onclick="moveFamilleOrdre(${f.id}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.65rem;line-height:1;padding:1px 4px;opacity:0.6;">▼</button>
+    </div>
+    <button type="button" onclick="removeFamilleOrdre(${f.id})" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.9rem;line-height:1;padding:0 2px;">×</button>
+    <input type="hidden" id="f-famille-${f.id}" value="${f.id}"/>
+  `
+}
+
+function makeFamilleDraggable(div) {
+  const handle = div.querySelector('.drag-handle')
+
+  // Le drag ne démarre que si on attrape la poignée (pas les boutons)
+  if (handle) {
+    handle.addEventListener('mousedown', () => { div.draggable = true })
+    handle.addEventListener('mouseup',   () => { div.draggable = false })
+  }
+
+  div.addEventListener('dragstart', (e) => {
+    div.style.opacity = '0.4'
+    div.classList.add('dragging')
+    e.dataTransfer.effectAllowed = 'move'
+  })
+
+  div.addEventListener('dragend', () => {
+    div.style.opacity = '1'
+    div.classList.remove('dragging')
+    div.draggable = false
+    updateFamilleLabels()
+  })
+}
+
+function initFamilleDragContainer(list) {
+  if (list.dataset.dragInit) return
+  list.dataset.dragInit = '1'
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    const dragging = list.querySelector('.dragging')
+    if (!dragging) return
+
+    // Trouve l'élément après lequel insérer selon la position du curseur
+    const siblings = [...list.querySelectorAll('[id^="famille-ordre-"]:not(.dragging)')]
+    const next = siblings.find(sib => {
+      const box = sib.getBoundingClientRect()
+      return e.clientY < box.top + box.height / 2
+    })
+
+    if (next) {
+      list.insertBefore(dragging, next)
+    } else {
+      list.appendChild(dragging)
+    }
+  })
+}
+
 function addFamilleOrdre(familleId) {
   const f = DB.familles.find(x => x.id === familleId)
   if (!f) return
   const list = document.getElementById('familles-ordre-list')
   if (!list) return
 
-  // Vérifier qu'elle n'est pas déjà dans la liste
   if (document.getElementById(`famille-ordre-${familleId}`)) return
+
+  initFamilleDragContainer(list)
 
   const idx = list.children.length
   const div = document.createElement('div')
   div.id = `famille-ordre-${familleId}`
   div.style.cssText = 'display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:var(--gold-dim);border:1px solid rgba(201,169,110,0.3);border-radius:6px;'
-  div.innerHTML = `
-    <span style="width:8px;height:8px;border-radius:50%;background:${f.couleur || '#9A8A78'};display:inline-block;flex-shrink:0;"></span>
-    <span style="flex:1;font-size:0.78rem;color:var(--gold);">${f.nom}</span>
-    <span class="ordre-label" style="font-size:0.6rem;color:var(--text-3);margin-right:0.25rem;">${idx === 0 ? 'Dominante' : idx === 1 ? 'Secondaire' : ''}</span>
-    <div style="display:flex;flex-direction:column;gap:2px;">
-      <button type="button" onclick="moveFamilleOrdre(${familleId}, -1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;">▲</button>
-      <button type="button" onclick="moveFamilleOrdre(${familleId}, 1)" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.7rem;line-height:1;padding:1px 4px;">▼</button>
-    </div>
-    <button type="button" onclick="removeFamilleOrdre(${familleId})" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:0.9rem;line-height:1;padding:0 2px;">×</button>
-    <input type="hidden" id="f-famille-${familleId}" value="${familleId}"/>
-  `
+  div.innerHTML = buildFamilleOrdreHTML(f, idx)
+  makeFamilleDraggable(div)
   list.appendChild(div)
   updateFamilleLabels()
 
-  // Retire le bouton d'ajout correspondant
   const btn = document.querySelector(`button[onclick="addFamilleOrdre(${familleId})"]`)
   if (btn) btn.remove()
 }
